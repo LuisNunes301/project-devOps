@@ -5,7 +5,7 @@ networks:
     driver: bridge
 
 services:
-  # --- CAMADA 3: BANCO DE DADOS ---
+  # --- CAMADA 3: BANCO DE DADOS (Isolado) ---
   oracle_db:
     image: gvenzl/oracle-xe:slim
     container_name: oracle_db
@@ -15,7 +15,7 @@ services:
     environment:
       - ORACLE_PASSWORD=${DB_PASSWORD}
 
-  # --- CAMADA 2: BACKEND (API) ---
+  # --- CAMADA 2: BACKEND API (Isolado) ---
   java_api:
     image: springio/gs-spring-boot-docker
     container_name: java_api
@@ -29,7 +29,7 @@ services:
     depends_on:
       - oracle_db
 
-  # --- CAMADA 1: FRONTEND E WAF (A Borda) ---
+  # --- CAMADA 1: FRONTEND E WAF (Porta de Entrada) ---
   web_borda:
     image: nginx:latest
     container_name: web_borda
@@ -44,11 +44,14 @@ services:
     depends_on:
       - java_api
 
-  # --- CAMADA DE OBSERVABILIDADE ---
+  # --- CAMADA DE OBSERVABILIDADE (SRE) ---
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.47.0 # Usando versão estável fixada
     container_name: cadvisor
     restart: always
+    privileged: true # <-- ESSENCIAL NO WINDOWS/DOCKER DESKTOP
+    devices:
+      - /dev/kmsg:/dev/kmsg
     networks:
       - corp_network
     volumes:
@@ -56,11 +59,14 @@ services:
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
 
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
     restart: always
+    ports: # <-- ADICIONE ESSAS DUAS LINHAS
+      - "9090:9090"
     networks:
       - corp_network
     volumes:
